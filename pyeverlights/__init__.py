@@ -18,6 +18,9 @@ MODE_RB = 'rb'
 
 _LOGGER = logging.getLogger(__name__)
 
+class ConnectionError(Exception):
+  pass
+
 class EverLights:
   def __init__(self, ip, session=None):
     self._ip = ip
@@ -29,10 +32,17 @@ class EverLights:
       self._session = aiohttp.ClientSession()
       self._auto_session = True
 
-    async with self._session.get('http://'+self._ip+path, params=params) as response:
-      data = await response.json()
-      _LOGGER.debug(str(response.url)+' response: '+json.dumps(data, sort_keys=True, indent=4))
-      return data
+    try:
+      async with self._session.get('http://'+self._ip+path, params=params) as response:
+        data = await response.json()
+        _LOGGER.debug(str(response.url)+' response: '+json.dumps(data, sort_keys=True, indent=4))
+        return data
+    except aiohttp.client_exceptions.ClientConnectorError as e:
+      raise ConnectionError from e
+    except asyncio.TimeoutError as e:
+      raise ConnectionError from e
+    except json.decoder.JSONDecodeError as e:
+      raise ConnectionError from e
 
   async def get_status(self):
     resp = await self._fetch('/status/get')
